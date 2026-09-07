@@ -5,10 +5,20 @@ local ACCENT = Color3.fromRGB(52, 211, 153)
 local WALLPAPER_ID = "14554547135"
 local WINDOW_SCALE = 0.7
 
-local function runScript(url)
+-- entry = { url = "..." }  (public GitHub-style URL)  OR  { body = "..." } (PROTECTED:
+-- the script body delivered inline in the validate response, never a public URL).
+local function runScript(entry)
 	task.spawn(function()
-		local ok, src = pcall(function() return game:HttpGet(url, true) end)
-		if not ok or type(src) ~= "string" then return end
+		local src
+		if type(entry) == "table" and type(entry.body) == "string" and entry.body ~= "" then
+			src = entry.body
+		else
+			local url = (type(entry) == "table") and entry.url or entry
+			if type(url) ~= "string" or url == "" then return end
+			local ok, s = pcall(function() return game:HttpGet(url, true) end)
+			if not ok or type(s) ~= "string" then return end
+			src = s
+		end
 		local fn = loadstring(src)
 		if fn then pcall(fn) end
 	end)
@@ -76,7 +86,7 @@ local function showSyde(list)
 		for _, s in ipairs(list) do
 			Tab:Button({ Title = s.name, Description = "Run " .. s.name, CallBack = function()
 				close()
-				runScript(s.url)
+				runScript(s)
 			end })
 		end
 		task.wait(0.6)
@@ -109,7 +119,7 @@ local function showFallback(list)
 		btn.Text = s.name; btn.Font = Enum.Font.GothamMedium; btn.TextSize = 13; btn.TextColor3 = Color3.fromRGB(235, 235, 235)
 		btn.AutoButtonColor = true; btn.LayoutOrder = i; btn.Parent = frame
 		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
-		btn.MouseButton1Click:Connect(function() gui:Destroy(); runScript(s.url) end)
+		btn.MouseButton1Click:Connect(function() gui:Destroy(); runScript(s) end)
 	end
 	local dragging, ds, sp
 	title.InputBegan:Connect(function(inp)
@@ -134,13 +144,19 @@ function Selector.show(scripts, opts)
 	scripts = scripts or {}
 	local list = {}
 	for _, s in ipairs(scripts) do
-		if s and s.url and s.url ~= "" then
-			list[#list + 1] = { name = tostring(s.name or "Script"), url = tostring(s.url) }
+		local hasUrl = s and type(s.url) == "string" and s.url ~= ""
+		local hasBody = s and type(s.body) == "string" and s.body ~= ""
+		if hasUrl or hasBody then
+			list[#list + 1] = {
+				name = tostring(s.name or "Script"),
+				url = hasUrl and tostring(s.url) or nil,
+				body = hasBody and tostring(s.body) or nil,
+			}
 		end
 	end
 	if #list == 0 then return end
 	if #list == 1 then
-		runScript(list[1].url)
+		runScript(list[1])
 		return
 	end
 	if not showSyde(list) then showFallback(list) end
