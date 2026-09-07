@@ -3,7 +3,7 @@ local UserInput = game:GetService("UserInputService")
 local SYDE_URL = "https://raw.githubusercontent.com/combowick-hub/syde/main/source"
 local ACCENT = Color3.fromRGB(52, 211, 153)
 local WALLPAPER_ID = "14554547135"
-local WINDOW_SCALE = 0.7
+local WINDOW_SCALE = 1.15   -- was 0.7 (too small to read); scale the whole window up
 
 -- entry = { url = "..." }  (public GitHub-style URL)  OR  { body = "..." } (PROTECTED:
 -- the script body delivered inline in the validate response, never a public URL).
