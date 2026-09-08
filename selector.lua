@@ -3,24 +3,28 @@ local UserInput = game:GetService("UserInputService")
 local SYDE_URL = "https://raw.githubusercontent.com/combowick-hub/syde/main/source"
 local ACCENT = Color3.fromRGB(52, 211, 153)
 local WALLPAPER_ID = "14554547135"
-local WINDOW_SCALE = 1.15   -- was 0.7 (too small to read); scale the whole window up
+local WINDOW_SCALE = 0.7
 
--- entry = { url = "..." }  (public GitHub-style URL)  OR  { body = "..." } (PROTECTED:
--- the script body delivered inline in the validate response, never a public URL).
-local function runScript(entry)
+-- Run a chosen script. opts.onSelect (when provided) takes over loading entirely — the
+-- free path uses it to fetch through a token-gated endpoint. Otherwise: run an inline
+-- body verbatim (protected key scripts), else HttpGet a URL.
+local function runItem(s, opts)
+	if opts and type(opts.onSelect) == "function" then
+		task.spawn(function() pcall(opts.onSelect, s) end)
+		return
+	end
 	task.spawn(function()
-		local src
-		if type(entry) == "table" and type(entry.body) == "string" and entry.body ~= "" then
-			src = entry.body
-		else
-			local url = (type(entry) == "table") and entry.url or entry
-			if type(url) ~= "string" or url == "" then return end
-			local ok, s = pcall(function() return game:HttpGet(url, true) end)
-			if not ok or type(s) ~= "string" then return end
-			src = s
+		if type(s.body) == "string" and #s.body > 0 then
+			local fn = loadstring(s.body)
+			if fn then pcall(fn) end
+			return
 		end
-		local fn = loadstring(src)
-		if fn then pcall(fn) end
+		if type(s.url) == "string" and s.url ~= "" then
+			local ok, src = pcall(function() return game:HttpGet(s.url, true) end)
+			if not ok or type(src) ~= "string" then return end
+			local fn = loadstring(src)
+			if fn then pcall(fn) end
+		end
 	end)
 end
 
@@ -65,7 +69,7 @@ local function decorate()
 	end)
 end
 
-local function showSyde(list)
+local function showSyde(list, opts)
 	local ok, syde = pcall(function() return loadstring(game:HttpGet(SYDE_URL, true))() end)
 	if not ok or type(syde) ~= "table" then return false end
 	return pcall(function()
@@ -83,10 +87,12 @@ local function showSyde(list)
 				if syde.Destroy then syde:Destroy() elseif Window and Window.main then Window.main:Destroy() end
 			end)
 		end
-		for _, s in ipairs(list) do
-			Tab:Button({ Title = s.name, Description = "Run " .. s.name, CallBack = function()
+		for _, item in ipairs(list) do
+			local desc = "Run " .. item.name
+			if item.mins then desc = desc .. "  •  " .. tostring(item.mins) .. " min free" end
+			Tab:Button({ Title = item.name, Description = desc, CallBack = function()
 				close()
-				runScript(s)
+				runItem(item.s, opts)
 			end })
 		end
 		task.wait(0.6)
@@ -94,7 +100,7 @@ local function showSyde(list)
 	end)
 end
 
-local function showFallback(list)
+local function showFallback(list, opts)
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "CW_Selector"; gui.ResetOnSpawn = false; gui.IgnoreGuiInset = true
 	local ok = pcall(function()
@@ -113,13 +119,14 @@ local function showFallback(list)
 	local title = Instance.new("TextLabel"); title.BackgroundTransparency = 1; title.Size = UDim2.new(1, 0, 0, 18)
 	title.Font = Enum.Font.GothamBold; title.Text = "COMBOWICK"; title.TextSize = 13; title.TextColor3 = ACCENT
 	title.TextXAlignment = Enum.TextXAlignment.Left; title.Parent = frame
-	for i, s in ipairs(list) do
+	for i, item in ipairs(list) do
 		local btn = Instance.new("TextButton")
 		btn.Size = UDim2.new(1, 0, 0, 34); btn.BackgroundColor3 = Color3.fromRGB(24, 24, 27)
-		btn.Text = s.name; btn.Font = Enum.Font.GothamMedium; btn.TextSize = 13; btn.TextColor3 = Color3.fromRGB(235, 235, 235)
+		btn.Text = item.mins and (item.name .. "  (" .. tostring(item.mins) .. " min)") or item.name
+		btn.Font = Enum.Font.GothamMedium; btn.TextSize = 13; btn.TextColor3 = Color3.fromRGB(235, 235, 235)
 		btn.AutoButtonColor = true; btn.LayoutOrder = i; btn.Parent = frame
 		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
-		btn.MouseButton1Click:Connect(function() gui:Destroy(); runScript(s) end)
+		btn.MouseButton1Click:Connect(function() gui:Destroy(); runItem(item.s, opts) end)
 	end
 	local dragging, ds, sp
 	title.InputBegan:Connect(function(inp)
@@ -142,24 +149,26 @@ local Selector = {}
 
 function Selector.show(scripts, opts)
 	scripts = scripts or {}
+	local hasSelect = opts and type(opts.onSelect) == "function"
 	local list = {}
 	for _, s in ipairs(scripts) do
-		local hasUrl = s and type(s.url) == "string" and s.url ~= ""
-		local hasBody = s and type(s.body) == "string" and s.body ~= ""
-		if hasUrl or hasBody then
-			list[#list + 1] = {
-				name = tostring(s.name or "Script"),
-				url = hasUrl and tostring(s.url) or nil,
-				body = hasBody and tostring(s.body) or nil,
-			}
+		-- With an onSelect hook every named script is selectable (the hook does the
+		-- loading). Without one, we can only run scripts that carry a url or body.
+		local runnable = hasSelect or (s and ((s.url and s.url ~= "") or (s.body and s.body ~= "")))
+		if s and runnable then
+			local mins = nil
+			if tonumber(s.session_seconds) and tonumber(s.session_seconds) > 0 then
+				mins = math.floor(tonumber(s.session_seconds) / 60 + 0.5)
+			end
+			list[#list + 1] = { name = tostring(s.name or "Script"), s = s, mins = mins }
 		end
 	end
 	if #list == 0 then return end
 	if #list == 1 then
-		runScript(list[1])
+		runItem(list[1].s, opts)
 		return
 	end
-	if not showSyde(list) then showFallback(list) end
+	if not showSyde(list, opts) then showFallback(list, opts) end
 end
 
 return Selector
