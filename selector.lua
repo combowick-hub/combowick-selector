@@ -3,7 +3,6 @@ local UserInput = game:GetService("UserInputService")
 local SYDE_URL = "https://raw.githubusercontent.com/combowick-hub/syde/main/source"
 local ACCENT = Color3.fromRGB(52, 211, 153)
 local WALLPAPER_ID = "14554547135"
-local WINDOW_SCALE = 0.7
 
 -- Run a chosen script. opts.onSelect (when provided) takes over loading entirely — the
 -- free path uses it to fetch through a token-gated endpoint. Otherwise: run an inline
@@ -63,9 +62,6 @@ local function decorate()
 				if node then node.Visible = false end
 			end
 		end
-		local sc = w:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
-		sc.Scale = WINDOW_SCALE
-		sc.Parent = w
 	end)
 end
 
@@ -74,7 +70,7 @@ local function showSyde(list, opts)
 	if not ok or type(syde) ~= "table" then return false end
 	return pcall(function()
 		syde:Load({
-			Name = "COMBOWICK", Status = "Script Selector",
+			Name = "COMBOWICK", Status = "Stable",
 			Accent = ACCENT, HitBox = ACCENT,
 			AutoLoad = false, ConfigurationSaving = { Enabled = false },
 		})
