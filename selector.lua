@@ -38,6 +38,17 @@ local function setAutoloadName(name)
 	map[_gameKey()] = name or nil
 	pcall(function() if writefile then writefile(AUTOLOAD_FILE, HttpService:JSONEncode(map)) end end)
 end
+-- Global auto-load delay (1.0..5.0s, default AUTO_DELAY), shared across games.
+local function getAutoloadDelay()
+	local v = tonumber(_readAutoMap()["__delay"])
+	if v and v >= 1 and v <= 5 then return v end
+	return AUTO_DELAY
+end
+local function setAutoloadDelay(v)
+	local map = _readAutoMap()
+	map["__delay"] = v
+	pcall(function() if writefile then writefile(AUTOLOAD_FILE, HttpService:JSONEncode(map)) end end)
+end
 
 -- Run a chosen script. opts.onSelect (when provided) takes over loading entirely.
 -- Otherwise: run an inline body verbatim, else HttpGet a URL.
@@ -129,11 +140,12 @@ local function buildGui(list, opts)
 	-- list container (phase 2)
 	local rowH = 68
 	local listFrame = Instance.new("Frame"); listFrame.BackgroundTransparency = 1; listFrame.Visible = false
-	listFrame.Position = UDim2.fromOffset(0, 60); listFrame.Size = UDim2.new(1, 0, 1, -90); listFrame.Parent = root
+	listFrame.Position = UDim2.fromOffset(0, 60); listFrame.Size = UDim2.new(1, 0, 1, -140); listFrame.Parent = root
 	local layout = Instance.new("UIListLayout", listFrame); layout.Padding = UDim.new(0, 10); layout.SortOrder = Enum.SortOrder.LayoutOrder
 
 	-- auto-load state
 	local currentAuto = getAutoloadName()   -- saved script name for THIS game (or nil)
+	local delay = getAutoloadDelay()        -- chosen countdown length (1.0..5.0s), slider-controlled
 	local stars = {}                        -- { {btn=, name=}, ... } for star visuals
 	local countdownToken = 0                -- bumping this cancels any running countdown
 	local autoTargetItem = nil              -- the list item matching currentAuto (if present)
@@ -153,13 +165,14 @@ local function buildGui(list, opts)
 	local function startCountdown(item)
 		countdownToken = countdownToken + 1
 		local myToken = countdownToken
+		local total = delay
 		autoBar.Visible = true
 		task.spawn(function()
-			local remain = AUTO_DELAY
+			local remain = total
 			while remain > 0 do
 				if myToken ~= countdownToken or not gui.Parent then return end
 				sub.Text = string.format("Auto-loading %s in %.1fs…", item.name, remain)
-				autoBar.Size = UDim2.new(math.clamp(remain / AUTO_DELAY, 0, 1), 0, 0, 3)
+				autoBar.Size = UDim2.new(math.clamp(remain / total, 0, 1), 0, 0, 3)
 				task.wait(0.1); remain = remain - 0.1
 			end
 			if myToken ~= countdownToken or not gui.Parent then return end
@@ -209,6 +222,44 @@ local function buildGui(list, opts)
 	end
 	refreshStars()
 
+	-- auto-load delay slider (neat bottom row, above footer; revealed with the list)
+	local sliderRow = Instance.new("Frame"); sliderRow.BackgroundTransparency = 1; sliderRow.Visible = false
+	sliderRow.AnchorPoint = Vector2.new(0, 1); sliderRow.Position = UDim2.new(0, 0, 1, -20); sliderRow.Size = UDim2.new(1, 0, 0, 40)
+	sliderRow.Parent = root
+	local slLabel = Instance.new("TextLabel"); slLabel.BackgroundTransparency = 1; slLabel.Size = UDim2.new(1, -64, 0, 16)
+	slLabel.Font = Enum.Font.Gotham; slLabel.TextSize = 13; slLabel.TextColor3 = Color3.fromRGB(150, 150, 158)
+	slLabel.TextXAlignment = Enum.TextXAlignment.Left; slLabel.Text = "Auto-load delay"; slLabel.Parent = sliderRow
+	local slVal = Instance.new("TextLabel"); slVal.BackgroundTransparency = 1; slVal.AnchorPoint = Vector2.new(1, 0)
+	slVal.Position = UDim2.new(1, 0, 0, 0); slVal.Size = UDim2.fromOffset(60, 16)
+	slVal.Font = Enum.Font.GothamBold; slVal.TextSize = 13; slVal.TextColor3 = ACCENT
+	slVal.TextXAlignment = Enum.TextXAlignment.Right; slVal.Text = string.format("%.1fs", delay); slVal.Parent = sliderRow
+	local track = Instance.new("Frame"); track.AnchorPoint = Vector2.new(0, 0.5); track.Position = UDim2.new(0, 0, 1, -8)
+	track.Size = UDim2.new(1, 0, 0, 6); track.BackgroundColor3 = Color3.fromRGB(48, 48, 56); track.BorderSizePixel = 0; track.Parent = sliderRow
+	corner(track, 3)
+	local fill = Instance.new("Frame"); fill.BackgroundColor3 = ACCENT; fill.BorderSizePixel = 0
+	fill.Size = UDim2.new((delay - 1) / 4, 0, 1, 0); fill.Parent = track; corner(fill, 3)
+	local knob = Instance.new("TextButton"); knob.AnchorPoint = Vector2.new(0.5, 0.5); knob.Position = UDim2.new((delay - 1) / 4, 0, 0.5, 0)
+	knob.Size = UDim2.fromOffset(16, 16); knob.BackgroundColor3 = Color3.fromRGB(240, 240, 245); knob.Text = ""; knob.AutoButtonColor = false; knob.Parent = track
+	corner(knob, 8)
+	local ks = Instance.new("UIStroke", knob); ks.Color = ACCENT; ks.Thickness = 2
+
+	local sliderDragging = false
+	local function applySlider(xPos)
+		local w = math.max(1, track.AbsoluteSize.X)
+		local frac = math.clamp((xPos - track.AbsolutePosition.X) / w, 0, 1)
+		delay = math.floor((1 + frac * 4) * 10 + 0.5) / 10   -- 1.0..5.0s, step 0.1
+		local f = (delay - 1) / 4
+		fill.Size = UDim2.new(f, 0, 1, 0)
+		knob.Position = UDim2.new(f, 0, 0.5, 0)
+		slVal.Text = string.format("%.1fs", delay)
+	end
+	knob.InputBegan:Connect(function(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then sliderDragging = true end
+	end)
+	track.InputBegan:Connect(function(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then sliderDragging = true; applySlider(inp.Position.X) end
+	end)
+
 	-- entrance pop
 	scale.Scale = 0.9
 	TweenService:Create(scale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
@@ -231,9 +282,10 @@ local function buildGui(list, opts)
 		task.wait(0.85)
 		playing = false
 		loading.Visible = false
-		root.Size = UDim2.fromOffset(480, 64 + #list * (rowH + 10) + 42)
+		root.Size = UDim2.fromOffset(480, 64 + #list * (rowH + 10) + 42 + 50)
 		listFrame.Visible = true
-		-- if this game has a saved auto-load pick, start the 3.5s countdown now
+		sliderRow.Visible = true
+		-- if this game has a saved auto-load pick, start the countdown now
 		if autoTargetItem then startCountdown(autoTargetItem) end
 	end)
 
@@ -265,12 +317,15 @@ local function buildGui(list, opts)
 				root.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
 			elseif resizing then
 				scale.Scale = math.clamp(rScale + (inp.Position.X - rStart.X) / 400, 0.7, 1.8)
+			elseif sliderDragging then
+				applySlider(inp.Position.X)
 			end
 		end
 	end)
 	UserInput.InputEnded:Connect(function(inp)
 		if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
 			dragging = false; resizing = false
+			if sliderDragging then sliderDragging = false; setAutoloadDelay(delay) end
 		end
 	end)
 end
