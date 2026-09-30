@@ -6,12 +6,38 @@
 local Players       = game:GetService("Players")
 local UserInput     = game:GetService("UserInputService")
 local TweenService  = game:GetService("TweenService")
+local HttpService   = game:GetService("HttpService")
 
 local ACCENT     = Color3.fromRGB(52, 211, 153)
 local BG         = Color3.fromRGB(20, 20, 24)
 local CARD       = Color3.fromRGB(30, 30, 36)
 local CARD_HOVER = Color3.fromRGB(42, 42, 50)
 local WALLPAPER  = "rbxassetid://14554547135"
+
+local AUTO_DELAY    = 3.5                    -- seconds before an auto-load script runs
+local AUTOLOAD_FILE = "CW_autoload_v1.json"
+
+-- Per-game auto-load preference, persisted via the executor file API (best-effort;
+-- silently no-ops on executors without file access). Keyed by game.GameId (universe).
+local function _gameKey() return tostring(game.GameId) end
+local function _readAutoMap()
+	local ok, map = pcall(function()
+		if isfile and readfile and isfile(AUTOLOAD_FILE) then
+			return HttpService:JSONDecode(readfile(AUTOLOAD_FILE))
+		end
+	end)
+	if ok and type(map) == "table" then return map end
+	return {}
+end
+local function getAutoloadName()
+	local v = _readAutoMap()[_gameKey()]
+	return type(v) == "string" and v or nil
+end
+local function setAutoloadName(name)
+	local map = _readAutoMap()
+	map[_gameKey()] = name or nil
+	pcall(function() if writefile then writefile(AUTOLOAD_FILE, HttpService:JSONEncode(map)) end end)
+end
 
 -- Run a chosen script. opts.onSelect (when provided) takes over loading entirely.
 -- Otherwise: run an inline body verbatim, else HttpGet a URL.
@@ -74,6 +100,11 @@ local function buildGui(list, opts)
 	corner(close, 15)
 	close.MouseButton1Click:Connect(function() gui:Destroy() end)
 
+	-- auto-load countdown progress bar (under header, hidden until active)
+	local autoBar = Instance.new("Frame"); autoBar.BackgroundColor3 = ACCENT; autoBar.BorderSizePixel = 0
+	autoBar.Position = UDim2.fromOffset(0, 52); autoBar.Size = UDim2.new(0, 0, 0, 3); autoBar.Visible = false; autoBar.Parent = root
+	corner(autoBar, 2)
+
 	-- footer
 	local footer = Instance.new("TextLabel"); footer.BackgroundTransparency = 1; footer.AnchorPoint = Vector2.new(0, 1)
 	footer.Position = UDim2.new(0, 0, 1, 0); footer.Size = UDim2.new(1, -20, 0, 14)
@@ -101,6 +132,42 @@ local function buildGui(list, opts)
 	listFrame.Position = UDim2.fromOffset(0, 60); listFrame.Size = UDim2.new(1, 0, 1, -90); listFrame.Parent = root
 	local layout = Instance.new("UIListLayout", listFrame); layout.Padding = UDim.new(0, 10); layout.SortOrder = Enum.SortOrder.LayoutOrder
 
+	-- auto-load state
+	local currentAuto = getAutoloadName()   -- saved script name for THIS game (or nil)
+	local stars = {}                        -- { {btn=, name=}, ... } for star visuals
+	local countdownToken = 0                -- bumping this cancels any running countdown
+	local autoTargetItem = nil              -- the list item matching currentAuto (if present)
+	local function refreshStars()
+		for _, e in ipairs(stars) do
+			local on = (currentAuto == e.name)
+			e.btn.BackgroundColor3 = on and ACCENT or Color3.fromRGB(40, 40, 46)
+			e.btn.TextColor3 = on and BG or Color3.fromRGB(160, 160, 168)
+			e.btn.Text = on and "AUTO ✓" or "AUTO"
+		end
+	end
+	local function cancelCountdown()
+		countdownToken = countdownToken + 1
+		autoBar.Visible = false
+		sub.Text = "Choose a script to run"
+	end
+	local function startCountdown(item)
+		countdownToken = countdownToken + 1
+		local myToken = countdownToken
+		autoBar.Visible = true
+		task.spawn(function()
+			local remain = AUTO_DELAY
+			while remain > 0 do
+				if myToken ~= countdownToken or not gui.Parent then return end
+				sub.Text = string.format("Auto-loading %s in %.1fs…", item.name, remain)
+				autoBar.Size = UDim2.new(math.clamp(remain / AUTO_DELAY, 0, 1), 0, 0, 3)
+				task.wait(0.1); remain = remain - 0.1
+			end
+			if myToken ~= countdownToken or not gui.Parent then return end
+			gui:Destroy()
+			runItem(item.s, opts)
+		end)
+	end
+
 	for i, item in ipairs(list) do
 		local card = Instance.new("TextButton"); card.Size = UDim2.new(1, 0, 0, rowH); card.BackgroundColor3 = CARD
 		card.AutoButtonColor = false; card.Text = ""; card.LayoutOrder = i; card.Parent = listFrame
@@ -108,22 +175,39 @@ local function buildGui(list, opts)
 		local cs = Instance.new("UIStroke", card); cs.Color = Color3.fromRGB(55, 55, 62); cs.Transparency = 0.35
 		local bar = Instance.new("Frame"); bar.Size = UDim2.fromOffset(4, rowH - 26); bar.Position = UDim2.fromOffset(0, 13)
 		bar.BackgroundColor3 = ACCENT; bar.BorderSizePixel = 0; bar.Parent = card; corner(bar, 2)
-		local nm = Instance.new("TextLabel"); nm.BackgroundTransparency = 1; nm.Position = UDim2.fromOffset(18, 12); nm.Size = UDim2.new(1, -54, 0, 24)
+		local nm = Instance.new("TextLabel"); nm.BackgroundTransparency = 1; nm.Position = UDim2.fromOffset(18, 12); nm.Size = UDim2.new(1, -104, 0, 24)
 		nm.Font = Enum.Font.GothamBold; nm.TextSize = 18; nm.TextColor3 = Color3.fromRGB(240, 240, 245)
 		nm.TextXAlignment = Enum.TextXAlignment.Left; nm.TextTruncate = Enum.TextTruncate.AtEnd; nm.Text = item.name; nm.Parent = card
-		local ds = Instance.new("TextLabel"); ds.BackgroundTransparency = 1; ds.Position = UDim2.fromOffset(18, 38); ds.Size = UDim2.new(1, -54, 0, 18)
+		local ds = Instance.new("TextLabel"); ds.BackgroundTransparency = 1; ds.Position = UDim2.fromOffset(18, 38); ds.Size = UDim2.new(1, -104, 0, 18)
 		ds.Font = Enum.Font.Gotham; ds.TextSize = 14; ds.TextColor3 = Color3.fromRGB(150, 150, 158); ds.TextXAlignment = Enum.TextXAlignment.Left
 		ds.Text = item.mins and ("Tap to run  •  " .. tostring(item.mins) .. " min free") or "Tap to run"; ds.Parent = card
 		local arrow = Instance.new("TextLabel"); arrow.BackgroundTransparency = 1; arrow.AnchorPoint = Vector2.new(1, 0.5)
-		arrow.Position = UDim2.new(1, -14, 0.5, 0); arrow.Size = UDim2.fromOffset(20, 20)
+		arrow.Position = UDim2.new(1, -12, 0.5, 0); arrow.Size = UDim2.fromOffset(18, 18)
 		arrow.Font = Enum.Font.GothamBold; arrow.TextSize = 22; arrow.TextColor3 = ACCENT; arrow.Text = "›"; arrow.Parent = card
+		-- AUTO toggle: mark this script to auto-load (3.5s countdown) now + on future opens
+		local autoBtn = Instance.new("TextButton"); autoBtn.AnchorPoint = Vector2.new(1, 0.5)
+		autoBtn.Position = UDim2.new(1, -38, 0.5, 0); autoBtn.Size = UDim2.fromOffset(52, 26)
+		autoBtn.Font = Enum.Font.GothamBold; autoBtn.TextSize = 12; autoBtn.AutoButtonColor = false
+		autoBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 46); autoBtn.TextColor3 = Color3.fromRGB(160, 160, 168)
+		autoBtn.Text = "AUTO"; autoBtn.Parent = card; corner(autoBtn, 13)
+		stars[#stars + 1] = { btn = autoBtn, name = item.name }
+		if currentAuto == item.name then autoTargetItem = item end
+		autoBtn.MouseButton1Click:Connect(function()
+			if currentAuto == item.name then
+				currentAuto = nil; setAutoloadName(nil); cancelCountdown(); refreshStars()
+			else
+				currentAuto = item.name; setAutoloadName(item.name); refreshStars(); startCountdown(item)
+			end
+		end)
 		card.MouseEnter:Connect(function() TweenService:Create(card, TweenInfo.new(0.15), { BackgroundColor3 = CARD_HOVER }):Play() end)
 		card.MouseLeave:Connect(function() TweenService:Create(card, TweenInfo.new(0.15), { BackgroundColor3 = CARD }):Play() end)
 		card.MouseButton1Click:Connect(function()
+			cancelCountdown()
 			gui:Destroy()
 			runItem(item.s, opts)
 		end)
 	end
+	refreshStars()
 
 	-- entrance pop
 	scale.Scale = 0.9
@@ -149,6 +233,8 @@ local function buildGui(list, opts)
 		loading.Visible = false
 		root.Size = UDim2.fromOffset(480, 64 + #list * (rowH + 10) + 42)
 		listFrame.Visible = true
+		-- if this game has a saved auto-load pick, start the 3.5s countdown now
+		if autoTargetItem then startCountdown(autoTargetItem) end
 	end)
 
 	-- drag by the header
