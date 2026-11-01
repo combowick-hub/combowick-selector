@@ -12,6 +12,7 @@ local ACCENT     = Color3.fromRGB(240, 185, 40)
 local BG         = Color3.fromRGB(15, 15, 15)
 local CARD       = Color3.fromRGB(26, 25, 22)
 local CARD_HOVER = Color3.fromRGB(40, 36, 26)
+local TXT = { choose = "Choose a script to run", tap = "Tap to run", loading = "Preparing scripts…", delay = "Auto-load delay", auto = "Auto-loading %s in %.1fs…" }
 local WALLPAPER  = "rbxassetid://14554547135"
 
 local AUTO_DELAY    = 3.5                    -- seconds before an auto-load script runs
@@ -104,7 +105,7 @@ local function buildGui(list, opts)
 	local sub = Instance.new("TextLabel"); sub.BackgroundTransparency = 1
 	sub.Position = UDim2.fromOffset(0, 30); sub.Size = UDim2.new(1, -40, 0, 18)
 	sub.Font = Enum.Font.Gotham; sub.TextSize = 14; sub.TextColor3 = Color3.fromRGB(150, 150, 158)
-	sub.TextXAlignment = Enum.TextXAlignment.Left; sub.Text = "Choose a script to run"; sub.Parent = root
+	sub.TextXAlignment = Enum.TextXAlignment.Left; sub.Text = TXT.choose; sub.Parent = root
 	local close = Instance.new("TextButton"); close.AnchorPoint = Vector2.new(1, 0); close.Position = UDim2.new(1, 0, 0, 0)
 	close.Size = UDim2.fromOffset(30, 30); close.BackgroundColor3 = Color3.fromRGB(40, 40, 46); close.Text = "X"
 	close.Font = Enum.Font.GothamBold; close.TextSize = 16; close.TextColor3 = Color3.fromRGB(220, 220, 220); close.Parent = root
@@ -120,13 +121,13 @@ local function buildGui(list, opts)
 	local footer = Instance.new("TextLabel"); footer.BackgroundTransparency = 1; footer.AnchorPoint = Vector2.new(0, 1)
 	footer.Position = UDim2.new(0, 0, 1, 0); footer.Size = UDim2.new(1, -20, 0, 14)
 	footer.Font = Enum.Font.Gotham; footer.TextSize = 11; footer.TextColor3 = Color3.fromRGB(110, 110, 118)
-	footer.TextXAlignment = Enum.TextXAlignment.Left; footer.Text = "COMBOWICK • free session"; footer.Parent = root
+	footer.TextXAlignment = Enum.TextXAlignment.Left; footer.Text = "COMBO_WICK"; footer.Parent = root
 
 	-- loading row (phase 1)
 	local loading = Instance.new("Frame"); loading.BackgroundTransparency = 1
 	loading.Position = UDim2.fromOffset(0, 70); loading.Size = UDim2.new(1, 0, 0, 70); loading.Parent = root
 	local ltxt = Instance.new("TextLabel"); ltxt.BackgroundTransparency = 1; ltxt.Size = UDim2.new(1, 0, 0, 20)
-	ltxt.Font = Enum.Font.Gotham; ltxt.TextSize = 14; ltxt.TextColor3 = Color3.fromRGB(180, 180, 188); ltxt.Text = "Preparing scripts…"; ltxt.Parent = loading
+	ltxt.Font = Enum.Font.Gotham; ltxt.TextSize = 14; ltxt.TextColor3 = Color3.fromRGB(180, 180, 188); ltxt.Text = TXT.loading; ltxt.Parent = loading
 	local dotsHolder = Instance.new("Frame"); dotsHolder.BackgroundTransparency = 1; dotsHolder.AnchorPoint = Vector2.new(0.5, 0)
 	dotsHolder.Position = UDim2.new(0.5, 0, 0, 34); dotsHolder.Size = UDim2.fromOffset(58, 12); dotsHolder.Parent = loading
 	local dl = Instance.new("UIListLayout", dotsHolder); dl.FillDirection = Enum.FillDirection.Horizontal
@@ -160,7 +161,7 @@ local function buildGui(list, opts)
 	local function cancelCountdown()
 		countdownToken = countdownToken + 1
 		autoBar.Visible = false
-		sub.Text = "Choose a script to run"
+		sub.Text = TXT.choose
 	end
 	local function startCountdown(item)
 		countdownToken = countdownToken + 1
@@ -171,7 +172,7 @@ local function buildGui(list, opts)
 			local remain = total
 			while remain > 0 do
 				if myToken ~= countdownToken or not gui.Parent then return end
-				sub.Text = string.format("Auto-loading %s in %.1fs…", item.name, remain)
+				sub.Text = string.format(TXT.auto, item.name, remain)
 				autoBar.Size = UDim2.new(math.clamp(remain / total, 0, 1), 0, 0, 3)
 				task.wait(0.1); remain = remain - 0.1
 			end
@@ -193,7 +194,7 @@ local function buildGui(list, opts)
 		nm.TextXAlignment = Enum.TextXAlignment.Left; nm.TextTruncate = Enum.TextTruncate.AtEnd; nm.Text = item.name; nm.Parent = card
 		local ds = Instance.new("TextLabel"); ds.BackgroundTransparency = 1; ds.Position = UDim2.fromOffset(18, 38); ds.Size = UDim2.new(1, -104, 0, 18)
 		ds.Font = Enum.Font.Gotham; ds.TextSize = 14; ds.TextColor3 = Color3.fromRGB(150, 150, 158); ds.TextXAlignment = Enum.TextXAlignment.Left
-		ds.Text = item.mins and ("Tap to run  •  " .. tostring(item.mins) .. " min free") or "Tap to run"; ds.Parent = card
+		ds.Text = item.mins and (TXT.tap .. "  •  " .. tostring(item.mins) .. " min") or TXT.tap; ds.Parent = card
 		local arrow = Instance.new("TextLabel"); arrow.BackgroundTransparency = 1; arrow.AnchorPoint = Vector2.new(1, 0.5)
 		arrow.Position = UDim2.new(1, -12, 0.5, 0); arrow.Size = UDim2.fromOffset(18, 18)
 		arrow.Font = Enum.Font.GothamBold; arrow.TextSize = 22; arrow.TextColor3 = ACCENT; arrow.Text = "›"; arrow.Parent = card
@@ -228,7 +229,7 @@ local function buildGui(list, opts)
 	sliderRow.Parent = root
 	local slLabel = Instance.new("TextLabel"); slLabel.BackgroundTransparency = 1; slLabel.Size = UDim2.new(1, -64, 0, 16)
 	slLabel.Font = Enum.Font.Gotham; slLabel.TextSize = 13; slLabel.TextColor3 = Color3.fromRGB(150, 150, 158)
-	slLabel.TextXAlignment = Enum.TextXAlignment.Left; slLabel.Text = "Auto-load delay"; slLabel.Parent = sliderRow
+	slLabel.TextXAlignment = Enum.TextXAlignment.Left; slLabel.Text = TXT.delay; slLabel.Parent = sliderRow
 	local slVal = Instance.new("TextLabel"); slVal.BackgroundTransparency = 1; slVal.AnchorPoint = Vector2.new(1, 0)
 	slVal.Position = UDim2.new(1, 0, 0, 0); slVal.Size = UDim2.fromOffset(60, 16)
 	slVal.Font = Enum.Font.GothamBold; slVal.TextSize = 13; slVal.TextColor3 = ACCENT
@@ -333,6 +334,9 @@ end
 local Selector = {}
 
 function Selector.show(scripts, opts)
+	-- the hub passes the player's theme color; older hubs pass nothing and get gold
+	if type(opts) == "table" and typeof(opts.accent) == "Color3" then ACCENT = opts.accent end
+	if type(opts) == "table" and type(opts.text) == "table" then for k, v in pairs(opts.text) do if TXT[k] and type(v) == "string" then TXT[k] = v end end end
 	scripts = scripts or {}
 	local hasSelect = opts and type(opts.onSelect) == "function"
 	local list = {}
