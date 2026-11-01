@@ -8,10 +8,10 @@ local UserInput     = game:GetService("UserInputService")
 local TweenService  = game:GetService("TweenService")
 local HttpService   = game:GetService("HttpService")
 
-local ACCENT     = Color3.fromRGB(52, 211, 153)
-local BG         = Color3.fromRGB(20, 20, 24)
-local CARD       = Color3.fromRGB(30, 30, 36)
-local CARD_HOVER = Color3.fromRGB(42, 42, 50)
+local ACCENT     = Color3.fromRGB(240, 185, 40)
+local BG         = Color3.fromRGB(15, 15, 15)
+local CARD       = Color3.fromRGB(26, 25, 22)
+local CARD_HOVER = Color3.fromRGB(40, 36, 26)
 local WALLPAPER  = "rbxassetid://14554547135"
 
 local AUTO_DELAY    = 3.5                    -- seconds before an auto-load script runs
@@ -89,7 +89,7 @@ local function buildGui(list, opts)
 	root.Size = UDim2.fromOffset(480, 300); root.BackgroundColor3 = BG; root.BorderSizePixel = 0; root.Parent = gui
 	local scale = Instance.new("UIScale"); scale.Scale = 1; scale.Parent = root
 	corner(root, 18)
-	local stroke = Instance.new("UIStroke", root); stroke.Color = ACCENT; stroke.Transparency = 0.45; stroke.Thickness = 1.5
+	local stroke = Instance.new("UIStroke", root); stroke.Color = ACCENT; stroke.Transparency = 0.1; stroke.Thickness = 1.5
 
 	local wp = Instance.new("ImageLabel"); wp.Size = UDim2.fromScale(1, 1); wp.BackgroundTransparency = 1
 	wp.Image = WALLPAPER; wp.ImageTransparency = 0.9; wp.ScaleType = Enum.ScaleType.Crop; wp.Parent = root; corner(wp, 18)
@@ -100,13 +100,13 @@ local function buildGui(list, opts)
 	-- header
 	local title = Instance.new("TextLabel"); title.BackgroundTransparency = 1
 	title.Size = UDim2.new(1, -40, 0, 28); title.Font = Enum.Font.GothamBold; title.TextSize = 24
-	title.TextColor3 = ACCENT; title.TextXAlignment = Enum.TextXAlignment.Left; title.Text = "COMBOWICK"; title.Parent = root
+	title.TextColor3 = ACCENT; title.TextXAlignment = Enum.TextXAlignment.Left; title.Text = "COMBO_WICK"; title.Parent = root
 	local sub = Instance.new("TextLabel"); sub.BackgroundTransparency = 1
 	sub.Position = UDim2.fromOffset(0, 30); sub.Size = UDim2.new(1, -40, 0, 18)
 	sub.Font = Enum.Font.Gotham; sub.TextSize = 14; sub.TextColor3 = Color3.fromRGB(150, 150, 158)
 	sub.TextXAlignment = Enum.TextXAlignment.Left; sub.Text = "Choose a script to run"; sub.Parent = root
 	local close = Instance.new("TextButton"); close.AnchorPoint = Vector2.new(1, 0); close.Position = UDim2.new(1, 0, 0, 0)
-	close.Size = UDim2.fromOffset(30, 30); close.BackgroundColor3 = Color3.fromRGB(40, 40, 46); close.Text = "✕"
+	close.Size = UDim2.fromOffset(30, 30); close.BackgroundColor3 = Color3.fromRGB(40, 40, 46); close.Text = "X"
 	close.Font = Enum.Font.GothamBold; close.TextSize = 16; close.TextColor3 = Color3.fromRGB(220, 220, 220); close.Parent = root
 	corner(close, 15)
 	close.MouseButton1Click:Connect(function() gui:Destroy() end)
